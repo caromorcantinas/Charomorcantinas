@@ -1,0 +1,206 @@
+
+import { useState, useEffect } from "react";
+import "./App.css";
+
+// 🔥 CONFIGURA FIREBASE AQUÍ
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_AUTH_DOMAIN",
+  databaseURL: "TU_DATABASE_URL",
+  projectId: "TU_PROJECT_ID",
+  storageBucket: "TU_STORAGE_BUCKET",
+  messagingSenderId: "TU_MESSAGING_ID",
+  appId: "TU_APP_ID"
+};
+
+export default function App() {
+  const [modo, setModo] = useState("tpv");
+  const [cliente, setCliente] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [pedido, setPedido] = useState([]);
+  const [lista, setLista] = useState([]);
+  const [menu, setMenu] = useState([]);
+
+  const [abierto, setAbierto] = useState(true);
+  const [horaInicio, setHoraInicio] = useState("12:00");
+  const [horaFin, setHoraFin] = useState("23:00");
+
+  // 🔹 Guardado simple en memoria local (para pruebas rápidas)
+  useEffect(() => {
+    const datos = localStorage.getItem("pedidos");
+    const menuGuardado = localStorage.getItem("menu");
+    if (datos) setLista(JSON.parse(datos));
+    if (menuGuardado) setMenu(JSON.parse(menuGuardado));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("pedidos", JSON.stringify(lista));
+  }, [lista]);
+
+  useEffect(() => {
+    localStorage.setItem("menu", JSON.stringify(menu));
+  }, [menu]);
+
+  const dentroHorario = () => {
+    const ahora = new Date();
+    const [hI, mI] = horaInicio.split(":");
+    const [hF, mF] = horaFin.split(":");
+
+    const inicio = new Date();
+    inicio.setHours(hI, mI);
+
+    const fin = new Date();
+    fin.setHours(hF, mF);
+
+    return ahora >= inicio && ahora <= fin;
+  };
+
+  const añadirProducto = (producto) => {
+    setPedido([...pedido, producto]);
+  };
+
+  const calcularTotal = () =>
+    pedido.reduce((acc, item) => acc + item.precio, 0);
+
+  const guardarPedido = () => {
+    if (!cliente || pedido.length === 0) return;
+
+    const nuevo = {
+      cliente,
+      telefono,
+      pedido,
+      estado: "pendiente",
+      total: calcularTotal(),
+      hora: new Date().toLocaleTimeString()
+    };
+
+    setLista([...lista, nuevo]);
+    setCliente("");
+    setTelefono("");
+    setPedido([]);
+  };
+
+  const cambiarEstado = (index) => {
+    const estados = ["pendiente", "cocina", "listo"];
+    const nueva = [...lista];
+    const actual = estados.indexOf(nueva[index].estado);
+    nueva[index].estado = estados[(actual + 1) % estados.length];
+    setLista(nueva);
+
+    if (nueva[index].estado === "listo") {
+      alert("🔔 Pedido listo: " + nueva[index].cliente);
+    }
+  };
+
+  const añadirAlMenu = (nombre, precio) => {
+    if (!nombre || !precio) return;
+    setMenu([...menu, { nombre, precio: parseFloat(precio) }]);
+  };
+
+  const urlQR = window.location.href + "?modo=cliente";
+
+  // ================= CLIENTE =================
+  if (modo === "cliente") {
+    if (!abierto || !dentroHorario()) {
+      return (
+        <div style={{ textAlign: "center", marginTop: 50 }}>
+          <h1>⛔ Cerrado</h1>
+          <p>
+            Horario: {horaInicio} - {horaFin}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ padding: 20 }}>
+        <h2>📲 Charo Mor Cantinas</h2>
+
+        <input
+          placeholder="Tu nombre"
+          value={cliente}
+          onChange={(e) => setCliente(e.target.value)}
+        />
+        <br />
+        <input
+          placeholder="Teléfono"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+        />
+
+        <h3>Menú</h3>
+        {menu.map((item, i) => (
+          <button key={i} onClick={() => añadirProducto(item)}>
+            {item.nombre} ({item.precio}€)
+          </button>
+        ))}
+
+        <h3>Tu pedido</h3>
+        {pedido.map((p, i) => (
+          <p key={i}>{p.nombre}</p>
+        ))}
+        <p>Total: {calcularTotal()}€</p>
+
+        <button onClick={guardarPedido}>Enviar Pedido</button>
+      </div>
+    );
+  }
+
+  // ================= TPV =================
+  return (
+    <div style={{ padding: 20 }}>
+      <h1>🔥 Charo Mor Cantinas TPV</h1>
+
+      <button onClick={() => setModo("cliente")}>
+        Ver modo cliente
+      </button>
+
+      <h3>📸 QR</h3>
+      <p>{urlQR}</p>
+
+      <h3>⏰ Horario</h3>
+      <input
+        type="time"
+        value={horaInicio}
+        onChange={(e) => setHoraInicio(e.target.value)}
+      />
+      <input
+        type="time"
+        value={horaFin}
+        onChange={(e) => setHoraFin(e.target.value)}
+      />
+      <button onClick={() => setAbierto(!abierto)}>
+        {abierto ? "Cerrar pedidos" : "Abrir pedidos"}
+      </button>
+
+      <h3>Menú</h3>
+      <input id="plato" placeholder="Plato" />
+      <input id="precio" placeholder="Precio" />
+      <button
+        onClick={() =>
+          añadirAlMenu(
+            document.getElementById("plato").value,
+            document.getElementById("precio").value
+          )
+        }
+      >
+        Añadir
+      </button>
+
+      <h3>Pedidos</h3>
+      {lista.map((p, i) => (
+        <div key={i} style={{ border: "1px solid black", margin: 10 }}>
+          <p>
+            {p.cliente} ({p.hora})
+          </p>
+          <p>{p.pedido.map((x) => x.nombre).join(", ")}</p>
+          <p>{p.total}€</p>
+          <p>{p.estado}</p>
+          <button onClick={() => cambiarEstado(i)}>
+            Cambiar estado
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+} 
